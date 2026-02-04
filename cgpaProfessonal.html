@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEUB CSE Pro Hub</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* --- CSS STYLES (The Beauty) --- */
+        :root {
+            --primary: #8e1b1b; /* NEUB Maroon */
+            --gold: #d4af37;
+            --text: #2d3436;
+            --border: #ddd;
+            --bg: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --card-bg: #ffffff;
+        }
+        
+        /* Dark Mode Variables */
+        [data-theme="dark"] {
+            --bg: #1a1a2e;
+            --text: #f0f0f0;
+            --border: #444;
+            --card-bg: #252545;
+            --primary: #ff6b6b;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; transition: 0.3s; }
+        
+        .dashboard { 
+            max-width: 1100px; margin: auto; 
+            background: rgba(255,255,255,0.8); backdrop-filter: blur(12px); 
+            border-radius: 20px; padding: 30px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1); 
+        }
+        [data-theme="dark"] .dashboard { background: rgba(30, 30, 50, 0.9); }
+
+        .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+        /* Card Styling */
+        .card { background: var(--card-bg); padding: 20px; border-radius: 15px; border: 1px solid var(--border); margin-bottom: 20px; }
+        
+        /* Semester Box Styling */
+        .sem-box { border-left: 5px solid var(--primary); padding: 15px; background: rgba(100,100,100,0.05); border-radius: 10px; margin-bottom: 15px; }
+        .sem-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+        .course-row { display: grid; grid-template-columns: 3fr 0.8fr 1fr 30px; gap: 8px; margin-bottom: 8px; position: relative; }
+        
+        /* Inputs & Buttons */
+        input, select { padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text); width: 100%; box-sizing: border-box; }
+        .btn { padding: 10px 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-p { background: var(--primary); color: white; width: 100%; margin-top: 10px; }
+        .btn-del { color: #e74c3c; background: none; font-size: 1.2em; cursor: pointer; }
+        
+        /* Autocomplete Suggestions */
+        .suggestions { position: absolute; background: var(--card-bg); border: 1px solid var(--border); width: 100%; z-index: 100; top: 40px; border-radius: 5px; display: none; max-height: 150px; overflow-y: auto; }
+        .s-item { padding: 8px; cursor: pointer; border-bottom: 1px solid var(--border); }
+        .s-item:hover { background: var(--primary); color: white; }
+        
+        /* Badges */
+        .gpa-badge { background: var(--primary); color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; }
+
+        /* Print Layout (Hides buttons when saving as PDF) */
+        @media print { .no-print { display: none !important; } .dashboard { box-shadow: none; background: white; } }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div class="no-print" style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 15px;">
+        <button class="btn" style="background:#57606f; color:white" onclick="toggleTheme()">🌙 Theme</button>
+        <button class="btn" style="background:var(--primary); color:white" onclick="window.print()">📄 Save PDF</button>
+        <button class="btn" style="background:var(--gold)" onclick="generateLink()">🔗 Share</button>
+    </div>
+
+    <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+        <input type="text" id="user-name" placeholder="Student Name" style="width: auto; border:none; border-bottom: 2px solid var(--primary); background:transparent; font-size: 1.2em; font-weight: bold;">
+        <input type="text" id="user-id" placeholder="Reg. ID" style="width: auto; border:none; border-bottom: 2px solid var(--primary); background:transparent; font-size: 1.2em;">
+    </div>
+
+    <div class="grid">
+        <div id="semesters-list"></div>
+
+        <div>
+            <div class="card" style="text-align: center;">
+                <span style="font-size: 0.8em; opacity: 0.7; letter-spacing: 1px;">CURRENT CGPA</span>
+                <div id="display-cgpa" style="font-size: 3.5rem; font-weight: 900; color: var(--primary);">0.00</div>
+                <div id="display-credits" style="font-weight: bold;">Total Credits: 0.0</div>
+            </div>
+
+            <div class="card" style="background: #e8f5e9; border: 1px solid #c8e6c9; color: #333;">
+                <h3 style="margin:0 0 10px 0; font-size: 1.1em;">🎯 Target GPA Calculator</h3>
+                <input type="number" id="goal-val" step="0.01" placeholder="Desired CGPA (e.g. 3.50)" style="margin-bottom:8px;">
+                <input type="number" id="goal-cr" placeholder="Remaining Credits (e.g. 40)" style="margin-bottom:8px;">
+                <button class="btn" style="background:#27ae60; color:white; width:100%" onclick="calculateGoal()">Calculate Required GPA</button>
+                <div id="goal-result" style="margin-top:10px; font-weight: bold; font-size: 0.9em;"></div>
+            </div>
+
+            <div class="card no-print">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <button class="btn btn-p no-print" onclick="addSemester()">+ Add New Semester</button>
+</div>
+
+<script>
+    /* --- JAVASCRIPT (The Brains) --- */
+
+    // 1. NEUB Course Database (Corrected from PDF)
+    const courseDB = {
+        // Year 1
+        "Discrete Mathematics": 3.0, "Structured Programming Language": 3.0, "Structured Programming Language Lab": 1.5,
+        "Basic Electrical Engineering": 3.0, "Basic Electrical Engineering Lab": 1.5, "Calculus": 3.0,
+        "History of the Emergence of Bangladesh": 3.0,
+        "Data Structures and Algorithms": 3.0, "Data Structures and Algorithms Lab": 1.5,
+        "Electronic Devices and Circuits": 3.0, "Electronic Devices and Circuits Lab": 1.5,
+        "Linear Algebra": 3.0, "Fundamentals of Physics": 3.0, "Advanced Functional English": 3.0, "Bangladesh Studies": 3.0,
+
+        // Year 2
+        "Object Oriented Programming Language": 3.0, "Object Oriented Programming Language Lab": 1.5,
+        "Algorithm Design and Analysis": 3.0, "Algorithm Design and Analysis Lab": 1.5,
+        "Digital Logic Design": 3.0, "Digital Logic Design Lab": 1.5, "Basic Probability and Statistics": 3.0,
+        "Principles of Accounting": 3.0,
+        "Introduction to Database Systems": 3.0, "Introduction to Database Systems Lab": 1.5,
+        "Operating System": 3.0, "Operating System Lab": 1.5, "Theory of Computation": 3.0,
+        "Numerical Analysis": 3.0, "Numerical Analysis Lab": 1.5, "Project Work I": 1.5,
+        "Complex Variables, Laplace Transform and Fourier Series": 3.0,
+
+        // Year 3
+        "Computer Networks": 3.0, "Computer Networks Lab": 1.5, "Software Engineering and Design Patterns": 3.0,
+        "Software Engineering and Design Patterns Lab": 1.5, "Artificial Intelligence": 3.0, "Artificial Intelligence Lab": 1.5,
+        "Microprocessor and Interfacing": 3.0, "Microprocessor and Interfacing Lab": 1.5, "Data Communication": 3.0,
+        "Introduction to Computer Security": 3.0, "Introduction to Computer Security Lab": 1.5,
+        "Machine Learning": 3.0, "Machine Learning Lab": 1.5, "Computer Architecture": 3.0,
+        "Web Technologies": 1.5, "Technical Writing and Research Methodology": 1.5, "Project Work II": 1.5,
+        "Principles of Economics": 3.0,
+
+        // Year 4
+        "Software Testing and Management": 3.0, "Software Testing and Management Lab": 1.5,
+        "Digital Signal Processing": 3.0, "Digital Signal Processing Lab": 1.5,
+        "Engineering Ethics and Cyber Law": 3.0, "Thesis I": 2.0, "Project I": 2.0,
+        "Computer Graphics": 3.0, "Computer Graphics Lab": 1.5, "Compiler Construction": 3.0,
+        "Compiler Construction Lab": 1.5, "Thesis II": 2.0, "Project II": 2.0, "Viva Voce": 2.0,
+
+        // Electives
+        "Advanced Algorithm and Data Structure": 3.0, "Advanced Database Systems": 3.0,
+        "Digital Image Processing": 3.0, "Computer Vision": 3.0, "Natural Language Processing": 3.0,
+        "Deep Learning": 3.0, "Reinforcement Learning": 3.0, "Bioinformatics": 3.0,
+        "Cloud Computing": 3.0, "Distributed and Parallel Computing": 3.0,
+        "Mobile and Wireless Communication": 3.0, "Elective Lab": 1.5
+    };
+
+    // 2. Grading Scale (Part D of Curriculum)
+    const grades = {"A+":4.00, "A":3.75, "A-":3.50, "B+":3.25, "B":3.00, "B-":2.75, "C+":2.50, "C":2.25, "D":2.00, "F":0.00, "":0};
+
+    // 3. State Management (Loading from Storage)
+    let data = JSON.parse(localStorage.getItem('neub_pro_v8')) || [{name:"Semester 1", courses:[{n:"", c:3, g:""}]}];
+    
+    // Check for shared URL data
+    const urlParams = new URLSearchParams(window.location.search);
+    const shared = urlParams.get('s');
+    if(shared) { try { data = JSON.parse(atob(shared)); } catch(e){ console.log('Link error'); } }
+
+    let myChart;
+
+    // 4. Core Functions
+    function save() { 
+        localStorage.setItem('neub_pro_v8', JSON.stringify(data)); 
+        updateUI(); 
+    }
+
+    function updateUI() {
+        let tp = 0, tc = 0, labels = [], points = [];
+        
+        data.forEach((s, si) => {
+            let sp = 0, sc = 0;
+            s.courses.forEach(c => { 
+                let cr = parseFloat(c.c) || 0;
+                if(c.g !== ""){ sp += (grades[c.g] * cr); sc += cr; } 
+            });
+            tp += sp; tc += sc;
+            
+            // Semester GPA logic
+            let semGPA = sc > 0 ? (sp/sc).toFixed(2) : "0.00";
+            if(document.getElementById(`badge-${si}`)) document.getElementById(`badge-${si}`).innerText = `GPA: ${semGPA}`;
+            
+            labels.push(s.name);
+            points.push(tc > 0 ? (tp/tc).toFixed(2) : 0);
+        });
+
+        const cgpa = tc > 0 ? (tp/tc).toFixed(2) : "0.00";
+        document.getElementById('display-cgpa').innerText = cgpa;
+        document.getElementById('display-credits').innerText = `Completed Credits: ${tc.toFixed(1)}`;
+        renderChart(labels, points);
+    }
+
+    function renderSemesters() {
+        const list = document.getElementById('semesters-list');
+        list.innerHTML = data.map((s, si) => `
+            <div class="sem-box">
+                <div class="sem-header">
+                    <input style="font-weight:bold; border:none; background:transparent; width:60%;" value="${s.name}" oninput="data[${si}].name=this.value; save()">
+                    <div style="display:flex; align-items:center; gap:10px">
+                        <span id="badge-${si}" class="gpa-badge">GPA: 0.00</span>
+                        <button class="btn-del" onclick="data.splice(${si},1); save(); renderSemesters()">×</button>
+                    </div>
+                </div>
+                ${s.courses.map((c, ci) => `
+                    <div class="course-row">
+                        <div style="position:relative">
+                            <input placeholder="Course Name" value="${c.n}" oninput="showSug(this, ${si}, ${ci})">
+                            <div class="suggestions" id="sug-${si}-${ci}"></div>
+                        </div>
+                        <input type="number" step="0.5" value="${c.c}" oninput="data[${si}].courses[${ci}].c=this.value; save()">
+                        <select onchange="data[${si}].courses[${ci}].g=this.value; save()">
+                            ${Object.keys(grades).map(g => `<option value="${g}" ${c.g==g?'selected':''}>${g||'Grade'}</option>`).join('')}
+                        </select>
+                        <button class="btn-del" onclick="data[${si}].courses.splice(${ci},1); save(); renderSemesters()">×</button>
+                    </div>
+                `).join('')}
+                <button class="no-print" onclick="data[${si}].courses.push({n:'',c:3,g:''}); save(); renderSemesters()" style="width:100%; border:none; background:rgba(0,0,0,0.05); padding:8px; border-radius:5px; cursor:pointer">+ Add Course</button>
+            </div>
+        `).join('');
+        updateUI();
+    }
+
+    // 5. Autocomplete Logic
+    function showSug(input, si, ci) {
+        const val = input.value.toLowerCase();
+        const box = document.getElementById(`sug-${si}-${ci}`);
+        data[si].courses[ci].n = input.value;
+        const matches = Object.keys(courseDB).filter(k => k.toLowerCase().includes(val));
+        
+        if(val && matches.length > 0) {
+            box.innerHTML = matches.map(m => `<div class="s-item" onclick="selCourse('${m}', ${si}, ${ci})">${m}</div>`).join('');
+            box.style.display = 'block';
+        } else {
+            box.style.display = 'none';
+        }
+        save();
+    }
+
+    function selCourse(name, si, ci) {
+        data[si].courses[ci].n = name;
+        data[si].courses[ci].c = courseDB[name];
+        renderSemesters();
+        save();
+    }
+
+    // 6. Goal Calculator
+    function calculateGoal() {
+        let tp = 0, tc = 0;
+        data.forEach(s => s.courses.forEach(c => { if(c.g !== ""){ tp += (grades[c.g] * parseFloat(c.c)); tc += parseFloat(c.c); } }));
+        
+        const target = parseFloat(document.getElementById('goal-val').value);
+        const remCr = parseFloat(document.getElementById('goal-cr').value);
+        const out = document.getElementById('goal-result');
+
+        if(!target || !remCr) return alert("Please enter both Target GPA and Remaining Credits");
+
+        // Formula: (Target * Total_Credits_Future) - Current_Points = Required_Points_Future
+        const reqPoints = (target * (tc + remCr)) - tp;
+        const reqGPA = reqPoints / remCr;
+
+        if(reqGPA > 4.0) out.innerHTML = `⚠️ Impossible. You would need a GPA of ${reqGPA.toFixed(2)}`;
+        else if(reqGPA < 2.0) out.innerHTML = `✅ Easy. You only need ${reqGPA.toFixed(2)}`;
+        else out.innerHTML = `🎯 You need to average <b>${reqGPA.toFixed(2)}</b> in your remaining credits.`;
+    }
+
+    // 7. Helpers (Theme, Chart, Sharing)
+    function toggleTheme() {
+        const t = document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        document.body.setAttribute('data-theme', t);
+        updateUI(); // Updates chart colors
+    }
+
+    function generateLink() {
+        const url = window.location.href.split('?')[0] + "?s=" + btoa(JSON.stringify(data));
+        navigator.clipboard.writeText(url).then(() => alert("Link copied to clipboard!"));
+    }
+
+    function addSemester() {
+        data.push({name:`Semester ${data.length+1}`, courses:[{n:"",c:3,g:""}]});
+        save(); renderSemesters();
+    }
+
+    function renderChart(labels, points) {
+        if(myChart) myChart.destroy();
+        const ctx = document.getElementById('growthChart').getContext('2d');
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: { 
+                labels: labels, 
+                datasets: [{ 
+                    label: 'CGPA Progress', 
+                    data: points, 
+                    borderColor: '#8e1b1b', 
+                    backgroundColor: 'rgba(142,27,27,0.1)', 
+                    fill: true, tension: 0.3 
+                }] 
+            },
+            options: {
+                responsive: true,
+                scales: { 
+                    y: { min: 2.0, max: 4.0, grid: { color: isDark ? '#444' : '#ddd' } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    // Profile Load/Save
+    const nameInput = document.getElementById('user-name');
+    const idInput = document.getElementById('user-id');
+    if(localStorage.getItem('neub_name')) nameInput.value = localStorage.getItem('neub_name');
+    if(localStorage.getItem('neub_id')) idInput.value = localStorage.getItem('neub_id');
+    
+    nameInput.addEventListener('input', e => localStorage.setItem('neub_name', e.target.value));
+    idInput.addEventListener('input', e => localStorage.setItem('neub_id', e.target.value));
+
+    // Init
+    renderSemesters();
+</script>
+
+</body>
+</html>
